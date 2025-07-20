@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>A Special Birthday Wish</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Quintessential&family=Lato:wght@300;400&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #02000c;
+            color: #f0f0f0;
+            font-family: 'Lato', sans-serif;
+            overflow: hidden;
+            cursor: default;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        .font-playfair { font-family: 'Playfair Display', serif; }
+        .font-quintessential { font-family: 'Quintessential', cursive; }
+
+        #game-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            background: radial-gradient(ellipse at center, #1b2735 0%, #090a0f 100%);
+        }
+
+        .ui-container {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            padding: 1rem;
+            transition: opacity 1s ease-in-out;
+        }
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .prompt {
+            opacity: 0;
+            animation: fadeIn 2s ease-out 1s forwards;
+            text-shadow: 0 0 10px rgba(255,255,255,0.3);
+        }
+        
+        @keyframes fadeIn { to { opacity: 1; } }
+        
+        .wish-text {
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeIn 1s ease-out forwards;
+        }
+        .title-char {
+            display: inline-block;
+            opacity: 0;
+            transform: scale(3);
+            animation: dropIn 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            text-shadow: 0 0 8px rgba(255, 255, 255, 0.7), 0 0 15px #feca57, 0 0 25px #feca57;
+        }
+         @keyframes dropIn {
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        /* Button Styles */
+        .choices-container {
+            opacity: 0;
+            animation: fadeIn 2s ease-out 1.5s forwards;
+            margin-top: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            width: 100%;
+            max-width: 350px;
+        }
+        
+        .choice-btn {
+            background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            font-family: 'Quintessential', cursive;
+            font-size: 1.5rem;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            cursor: pointer;
+            width: 100%;
+            text-shadow: 0 0 5px rgba(0,0,0,0.5);
+            box-shadow: inset 0 0 20px rgba(255,255,255,0.05);
+            transition: all 0.3s ease;
+        }
+        .choice-btn:hover {
+             border-color: #feca57;
+             transform: scale(1.05) translateY(-5px);
+             box-shadow: 0 10px 20px rgba(0,0,0,0.2), inset 0 0 20px rgba(255,255,255,0.1);
+             background: linear-gradient(45deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.1));
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <canvas id="game-canvas"></canvas>
+
+    <!-- Screen 1: The Wishing Game -->
+    <div id="wishing-container" class="ui-container">
+        <h2 id="wishing-prompt" class="prompt text-2xl md:text-4xl text-center font-playfair text-white/90">Choose a wish for your year...</h2>
+        <div id="choices-1" class="choices-container">
+            <button class="choice-btn">Joy</button>
+            <button class="choice-btn">Love</button>
+        </div>
+        <div id="choices-2" class="choices-container hidden">
+            <button class="choice-btn">Laughter</button>
+            <button class="choice-btn">Peace</button>
+        </div>
+        <div id="choices-3" class="choices-container hidden">
+            <button class="choice-btn">Adventure</button>
+            <button class="choice-btn">Success</button>
+        </div>
+    </div>
+    
+    <!-- Screen 2: The Final Wish -->
+    <div id="wish-container" class="ui-container hidden">
+        <div class="text-center">
+            <h1 id="main-title" class="font-playfair text-5xl sm:text-6xl md:text-8xl text-white mb-8"></h1>
+            
+            <p id="wish-message" class="wish-text text-xl md:text-2xl text-white/80 max-w-3xl mx-auto italic" style="animation-delay: 1.5s; line-height: 1.8;"></p>
+
+            <p class="wish-text font-quintessential text-3xl mt-12" style="color: #feca57; animation-delay: 2.5s;">
+                With all my love, [Your Name]
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const wishingContainer = document.getElementById('wishing-container');
+        const wishContainer = document.getElementById('wish-container');
+
+        let particles = [];
+        let caughtWishes = [];
+        
+        // The library of sentences for the dynamic wish
+        const WISH_SENTENCES = {
+            'Joy': "May your days be bright with a pure and simple joy that makes your heart sing.",
+            'Love': "May you be surrounded by a love that is deep, unconditional, and a constant source of strength.",
+            'Laughter': "May your life be filled with so much infectious laughter that your cheeks hurt and your spirit soars.",
+            'Peace': "May you find tranquility in the quiet moments and a calm, centered heart amidst life's storms.",
+            'Adventure': "May you have the courage to explore new horizons and live stories that you'll tell for years to come.",
+            'Success': "May your hard work blossom into remarkable achievements that bring you immense pride and fulfillment."
+        };
+
+        class Particle {
+            constructor(x, y, color, life, size) {
+                this.x = x; this.y = y; this.color = color; this.life = life; this.size = size;
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 5 + 2;
+                this.speedX = Math.cos(angle) * speed;
+                this.speedY = Math.sin(angle) * speed;
+                this.friction = 0.96;
+            }
+            update() {
+                this.speedX *= this.friction; this.speedY *= this.friction;
+                this.x += this.speedX; this.y += this.speedY;
+                this.life -= 1;
+            }
+            draw() {
+                ctx.fillStyle = this.color; ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+        
+        function drawMoon() {
+            const moonX = canvas.width * 0.85;
+            const moonY = canvas.height * 0.15;
+            const moonRadius = 40;
+            ctx.fillStyle = 'rgba(240, 240, 255, 0.8)';
+            ctx.shadowColor = 'white';
+            ctx.shadowBlur = 20;
+            ctx.beginPath();
+            ctx.arc(moonX, moonY, moonRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        function init() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            particles = [];
+            animate();
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (!wishingContainer.classList.contains('hidden')) {
+                drawMoon();
+            }
+
+            particles.forEach((p, index) => {
+                p.update();
+                p.draw();
+                if (p.life <= 0) particles.splice(index, 1);
+            });
+            requestAnimationFrame(animate);
+        }
+
+        function handleChoice(button) {
+            if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
+                Tone.start();
+            }
+
+            const choiceText = button.innerText;
+            caughtWishes.push(choiceText);
+            
+            const rect = button.getBoundingClientRect();
+            const x = rect.left + rect.width / 2;
+            const y = rect.top + rect.height / 2;
+            for (let i = 0; i < 50; i++) {
+                particles.push(new Particle(x, y, `hsla(${190 + Math.random() * 100}, 70%, 80%, 1)`, 80, Math.random() * 2.5));
+            }
+
+            const parentContainer = button.parentElement;
+            parentContainer.classList.add('hidden');
+
+            const nextChoiceNumber = parseInt(parentContainer.id.split('-')[1]) + 1;
+            const nextChoiceContainer = document.getElementById(`choices-${nextChoiceNumber}`);
+
+            if (nextChoiceContainer) {
+                nextChoiceContainer.classList.remove('hidden');
+            } else {
+                revealWish();
+            }
+        }
+
+        document.querySelectorAll('.choice-btn').forEach(button => {
+            button.addEventListener('click', () => handleChoice(button));
+        });
+
+        function revealWish() {
+            wishingContainer.classList.add('hidden');
+            
+            for (let i = 0; i < 250; i++) {
+                const color = `hsla(${Math.random() * 360}, 90%, 70%, 1)`;
+                particles.push(new Particle(canvas.width/2, canvas.height/2, color, 150, Math.random() * 3));
+            }
+
+            setTimeout(() => {
+                wishContainer.classList.remove('hidden');
+                playBirthdaySong();
+
+                // Generate the dynamic wish
+                const wishMessageEl = document.getElementById('wish-message');
+                let finalWish = `"The stars, guided by your choices, have woven a wish just for you... <br><br>`;
+                finalWish += `${WISH_SENTENCES[caughtWishes[0]]} `;
+                finalWish += `${WISH_SENTENCES[caughtWishes[1]]} `;
+                finalWish += `And above all, ${WISH_SENTENCES[caughtWishes[2]].toLowerCase().replace(/^may you/, 'may you')}"`;
+                wishMessageEl.innerHTML = finalWish;
+
+                const titleText = "Happy Birthday, Varshini!";
+                const titleContainer = document.getElementById('main-title');
+                let delay = 0.5;
+                titleText.split('').forEach(char => {
+                    const span = document.createElement('span');
+                    span.className = 'title-char';
+                    span.textContent = char;
+                    if (char === ' ') span.innerHTML = '&nbsp;';
+                    span.style.animationDelay = `${delay}s`;
+                    titleContainer.appendChild(span);
+                    delay += 0.05;
+                });
+            }, 800);
+        }
+        
+        function playBirthdaySong() {
+            if (typeof Tone === 'undefined' || Tone.context.state !== 'running') return;
+            
+            const synth = new Tone.Synth({
+                oscillator: { type: 'sine' },
+                envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 }
+            }).toDestination();
+
+            const now = Tone.now();
+            const notes = [
+                { note: 'G4', duration: '8n', time: now }, { note: 'G4', duration: '8n', time: now + 0.25 },
+                { note: 'A4', duration: '4n', time: now + 0.5 }, { note: 'G4', duration: '4n', time: now + 1 },
+                { note: 'C5', duration: '4n', time: now + 1.5 }, { note: 'B4', duration: '2n', time: now + 2 },
+                { note: 'G4', duration: '8n', time: now + 3 }, { note: 'G4', duration: '8n', time: now + 3.25 },
+                { note: 'A4', duration: '4n', time: now + 3.5 }, { note: 'G4', duration: '4n', time: now + 4 },
+                { note: 'D5', duration: '4n', time: now + 4.5 }, { note: 'C5', duration: '2n', time: now + 5 },
+            ];
+            
+            notes.forEach(item => {
+                synth.triggerAttackRelease(item.note, item.duration, item.time);
+            });
+        }
+
+        window.addEventListener('resize', init);
+        init();
+    </script>
+</body>
+</html>
